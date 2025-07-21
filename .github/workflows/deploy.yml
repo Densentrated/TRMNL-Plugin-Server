@@ -70,7 +70,7 @@ jobs:
             chmod +x trmnl_plugin_server
 
             # Start new service
-            nohup ./trmnl_plugin_server > server.log 2>&1 &
+            nohup ./trmnl_plugin_server &
             echo "Service started successfully"
             EOF
             chmod +x deploy.sh
