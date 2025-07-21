@@ -26,33 +26,7 @@ jobs:
         run: |
           cargo build --release
 
-      - name: Stop existing service
-        if: success()
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            # Stop existing service if running
-            PID=$(pgrep -f trmnl_plugin_server || echo "")
-            if [ ! -z "$PID" ]; then
-              echo "Found existing service with PID: $PID"
-              kill $PID
-              sleep 3
-              # Check if process is still running
-              if pgrep -f trmnl_plugin_server > /dev/null; then
-                echo "Process still running, force killing..."
-                pkill -9 -f trmnl_plugin_server
-                sleep 1
-              fi
-              echo "Service stopped successfully"
-            else
-              echo "No existing service found"
-            fi
-            exit 0
-
-      - name: Prepare deployment directory
+      - name: Deploy and restart service
         if: success()
         uses: appleboy/ssh-action@master
         with:
@@ -74,7 +48,7 @@ jobs:
           source: "target/release/trmnl_plugin_server"
           target: "${{ secrets.APP_DIR }}/trmnl_plugin_server"
 
-      - name: Start service on VPS
+      - name: Create deployment script
         if: success()
         uses: appleboy/ssh-action@master
         with:
@@ -83,6 +57,33 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd ${{ secrets.APP_DIR }}
+            cat > deploy.sh << 'EOF'
+            #!/bin/bash
+            # Stop existing service if running
+            if pgrep -f trmnl_plugin_server > /dev/null; then
+              echo "Stopping existing service..."
+              pkill -f trmnl_plugin_server
+              sleep 3
+            fi
+
+            # Make binary executable
             chmod +x trmnl_plugin_server
+
+            # Start new service
             nohup ./trmnl_plugin_server > server.log 2>&1 &
             echo "Service started successfully"
+            EOF
+            chmod +x deploy.sh
+
+      - name: Execute deployment script
+        if: success()
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ${{ secrets.APP_DIR }}
+            nohup ./deploy.sh > deploy.log 2>&1 &
+            sleep 2
+            echo "Deployment initiated"
