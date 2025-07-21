@@ -35,14 +35,22 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             # Stop existing service if running
-            if pgrep -f trmnl_plugin_server > /dev/null; then
-              echo "Stopping existing service..."
-              pkill -f trmnl_plugin_server
-              sleep 2
-              echo "Service stopped"
+            PID=$(pgrep -f trmnl_plugin_server || echo "")
+            if [ ! -z "$PID" ]; then
+              echo "Found existing service with PID: $PID"
+              kill $PID
+              sleep 3
+              # Check if process is still running
+              if pgrep -f trmnl_plugin_server > /dev/null; then
+                echo "Process still running, force killing..."
+                pkill -9 -f trmnl_plugin_server
+                sleep 1
+              fi
+              echo "Service stopped successfully"
             else
               echo "No existing service found"
             fi
+            exit 0
 
       - name: Prepare deployment directory
         if: success()
