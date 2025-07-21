@@ -22,6 +22,10 @@ jobs:
         run: |
           cargo test
 
+      - name: Build Release Binary
+        run: |
+          cargo build --release
+
       - name: Deploy to VPS via SSH
         if: success()
         uses: appleboy/ssh-action@master
@@ -30,8 +34,31 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            # Stop existing service if running
+            pkill -f trmnl_plugin_server || true
+
+            # Create app directory if it doesn't exist
+            mkdir -p ${{ secrets.APP_DIR }}
+
+      - name: Copy binary to VPS
+        if: success()
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "target/release/trmnl_plugin_server"
+          target: "${{ secrets.APP_DIR }}/trmnl_plugin_server"
+
+      - name: Start service on VPS
+        if: success()
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
             cd ${{ secrets.APP_DIR }}
-            git pull
-            cargo build --release
-            mv target/release/TRMNL-Plugin-Server ${{ secrets.APP_DIR }}/TRMNL-Plugin-Server
-            nohup ${{ secrets.APP_DIR }}/TRMNL-Plugin-Server &
+            chmod +x trmnl_plugin_server
+            nohup ./trmnl_plugin_server > server.log 2>&1 &
+            echo "Service started successfully"
