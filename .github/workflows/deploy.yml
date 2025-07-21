@@ -1,0 +1,37 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main # Change 'main' to any branch you want
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Run Rust tests
+        run: |
+          cargo test
+
+      - name: Deploy to VPS via SSH
+        if: success()
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ${{ secrets.APP_DIR }}
+            git pull
+            cargo build --release
+            mv target/release/TRMNL-Plugin-Server ${{ secrets.APP_DIR }}/TRMNL-Plugin-Server
+            nohup ${{ secrets.APP_DIR }}/TRMNL-Plugin-Server &
