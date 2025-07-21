@@ -26,7 +26,7 @@ jobs:
         run: |
           cargo build --release
 
-      - name: Deploy to VPS via SSH
+      - name: Stop existing service
         if: success()
         uses: appleboy/ssh-action@master
         with:
@@ -35,10 +35,26 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             # Stop existing service if running
-            pkill -f trmnl_plugin_server || true
+            if pgrep -f trmnl_plugin_server > /dev/null; then
+              echo "Stopping existing service..."
+              pkill -f trmnl_plugin_server
+              sleep 2
+              echo "Service stopped"
+            else
+              echo "No existing service found"
+            fi
 
+      - name: Prepare deployment directory
+        if: success()
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
             # Create app directory if it doesn't exist
             mkdir -p ${{ secrets.APP_DIR }}
+            echo "Directory prepared: ${{ secrets.APP_DIR }}"
 
       - name: Copy binary to VPS
         if: success()
