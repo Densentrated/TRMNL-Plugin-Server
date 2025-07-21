@@ -1,4 +1,4 @@
-name: Deploy to VPS
+name: Test Code And Deploy to VPS
 
 on:
   push:
