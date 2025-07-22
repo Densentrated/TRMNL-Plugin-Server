@@ -10,7 +10,7 @@ async fn main() -> std::io::Result<()> {
             .route("/MBTA", web::post().to(handlers::mbta::mbta_handler))
             .route("/check-in", web::post().to(handlers::check_in::check_in_handler))
     })
-    .bind("127.0.0.1:22991")?
+    .bind("0.0.0.0:22991")?
     .run()
     .await
 }
