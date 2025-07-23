@@ -1,23 +1,8 @@
 use tokio::time::{interval, Duration};
 use chrono::{Datelike, Utc};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::sync::{Arc, RwLock};
-use include_dir::{include_dir, Dir};
-
-// Embed the storage directory at compile time
-static STORAGE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/src/storage");
-
-#[derive(Debug, Deserialize, Clone)]
-struct CsvRow {
-    #[serde(rename = "Vietnamese")]
-    vietnamese: String,
-    #[serde(rename = "English")]
-    english: String,
-    #[serde(rename = "Vietnamese_Sentence")]
-    vietnamese_sentence: String,
-    #[serde(rename = "English_Sentence")]
-    english_sentence: String,
-}
+use crate::utils::csv_reader;
 
 #[derive(Serialize, Clone)]
 pub struct VietLangResponse {
@@ -60,8 +45,16 @@ async fn update_viet_lang_cache() -> Result<(), Box<dyn std::error::Error + Send
 
     println!("Updating Vietnamese language cache for day {}, CSV row {}", year_day, csv_number);
 
-    // Read from embedded CSV data
-    let response = read_embedded_csv_row(csv_number as usize).await?;
+    // Read from embedded CSV data using the generic util function
+    let csv_row = csv_reader::read_embedded_csv_row("viet_lang_learn.csv", csv_number as usize).await?;
+
+    // Convert HashMap to VietLangResponse
+    let response = VietLangResponse {
+        word: csv_row.get("Vietnamese").unwrap_or(&String::new()).clone(),
+        word_translated: csv_row.get("English").unwrap_or(&String::new()).clone(),
+        sentence: csv_row.get("Vietnamese_Sentence").unwrap_or(&String::new()).clone(),
+        sentence_translated: csv_row.get("English_Sentence").unwrap_or(&String::new()).clone(),
+    };
 
     // Update the global cache
     {
@@ -71,44 +64,6 @@ async fn update_viet_lang_cache() -> Result<(), Box<dyn std::error::Error + Send
 
     println!("Vietnamese language cache updated successfully");
     Ok(())
-}
-
-async fn read_embedded_csv_row(row_number: usize) -> Result<VietLangResponse, Box<dyn std::error::Error + Send + Sync>> {
-    // Get embedded CSV file content
-    let csv_file = STORAGE_DIR.get_file("viet_lang_learn.csv")
-        .ok_or("CSV file not found in embedded storage")?;
-    
-    let content = csv_file.contents_utf8()
-        .ok_or("CSV file is not valid UTF-8")?;
-    
-    // Parse CSV in a blocking task to avoid blocking the async runtime
-    let response = tokio::task::spawn_blocking(move || -> Result<VietLangResponse, Box<dyn std::error::Error + Send + Sync>> {
-        let mut reader = csv::Reader::from_reader(content.as_bytes());
-        let mut records: Vec<CsvRow> = Vec::new();
-        
-        // Parse all records
-        for result in reader.deserialize() {
-            let record: CsvRow = result?;
-            records.push(record);
-        }
-        
-        if records.is_empty() {
-            return Err("No data found in CSV file".into());
-        }
-        
-        // Get the specific row (with wraparound if row_number exceeds available rows)
-        let index = (row_number - 1) % records.len();
-        let row = &records[index];
-        
-        Ok(VietLangResponse {
-            word: row.vietnamese.clone(),
-            word_translated: row.english.clone(),
-            sentence: row.vietnamese_sentence.clone(),
-            sentence_translated: row.english_sentence.clone(),
-        })
-    }).await??;
-    
-    Ok(response)
 }
 
 // Helper function to get current cached data
