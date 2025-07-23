@@ -1,8 +1,13 @@
-use actix_web::{web, App, HttpServer, Responder};
+use actix_web::{web, App, HttpServer};
 mod handlers;
+mod tasks;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Start the daily poller in the background
+    tokio::spawn(tasks::viet_lang_learn_poller::run_daily_poller());
+    
+    // start the server
     HttpServer::new(|| {
         App::new()
             .route("/viet-lang-learn", web::get().to(handlers::viet_lang_learn::viet_lang_learn_handler))
